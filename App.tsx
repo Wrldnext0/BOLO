@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ViewState, TranscriptionRecord, AppSettings, SupportedLanguage } from './types';
 import Console from './components/Console';
 import Editor from './components/Editor';
@@ -7,9 +7,7 @@ import Settings from './components/Settings';
 
 const DEFAULT_SETTINGS: AppSettings = {
     language: SupportedLanguage.AUTO,
-    highContrast: false,
-    fontSize: 'normal',
-    miniMode: false,
+    handsFreeMode: false,
 };
 
 const App: React.FC = () => {
@@ -17,6 +15,10 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<TranscriptionRecord[]>([]);
   const [activeRecord, setActiveRecord] = useState<TranscriptionRecord | null>(null);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  
+  // Keep Alive Audio Ref
+  const keepAliveAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Load history and settings from local storage
   useEffect(() => {
@@ -46,14 +48,169 @@ const App: React.FC = () => {
 
   useEffect(() => {
     localStorage.setItem('bolo_settings', JSON.stringify(settings));
+    
+    // Manage Keep Alive Audio for Background Mode
+    if (settings.handsFreeMode) {
+        if (!keepAliveAudioRef.current) {
+            // Create a silent audio element to keep browser tab active
+            const audio = new Audio();
+            // A 1-second silence file (base64 wav)
+            audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+            audio.loop = true;
+            audio.volume = 0.01; // Nearly silent
+            keepAliveAudioRef.current = audio;
+        }
+        // Attempt to play (browser may require interaction first)
+        keepAliveAudioRef.current.play().catch(e => console.log("Waiting for interaction to play keep-alive"));
+    } else {
+        if (keepAliveAudioRef.current) {
+            keepAliveAudioRef.current.pause();
+            keepAliveAudioRef.current = null;
+        }
+    }
   }, [settings]);
 
+  const playSuccessSound = useCallback(() => {
+      try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContext) return;
+        
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        // Pleasant "Ding" sound
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+        osc.frequency.exponentialRampToValueAtTime(1046.5, ctx.currentTime + 0.1); // C6
+
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.5);
+      } catch (e) {
+          console.error("Audio feedback failed", e);
+      }
+  }, []);
+
+  // Robust Copy Function with Multi-stage Fallback
+  const secureCopy = async (text: string): Promise<boolean> => {
+    // Stage 1: Modern API (Standard)
+    // Note: This often throws "Write permission denied" if tab is not focused.
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch (err) {
+        console.warn("Stage 1 (Clipboard API) failed:", err);
+    }
+
+    // Stage 2: Deprecated execCommand with hidden textarea
+    // This is synchronous and sometimes bypasses the strict focus check in older rendering contexts.
+    try {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        
+        // Use styling that makes it technically visible but effectively hidden
+        // 'display: none' or 'visibility: hidden' prevents selection.
+        textArea.style.position = "fixed";
+        textArea.style.left = "0";
+        textArea.style.top = "0";
+        textArea.style.opacity = "0.01";
+        textArea.style.width = "1px";
+        textArea.style.height = "1px";
+        textArea.style.padding = "0";
+        textArea.style.border = "none";
+        textArea.style.outline = "none";
+        textArea.style.boxShadow = "none";
+        textArea.style.background = "transparent";
+        textArea.style.zIndex = "-1";
+        
+        document.body.appendChild(textArea);
+        textArea.focus({ preventScroll: true });
+        textArea.select();
+        
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        
+        if (successful) return true;
+    } catch (err) {
+        console.warn("Stage 2 (execCommand/Textarea) failed:", err);
+    }
+    
+    // Stage 3: contentEditable span (Rare fallback for specific Safari/Webkit edge cases)
+    try {
+        const span = document.createElement("span");
+        span.textContent = text;
+        span.contentEditable = "true";
+        span.style.position = "fixed";
+        span.style.left = "0";
+        span.style.top = "0";
+        span.style.opacity = "0.01";
+        span.style.zIndex = "-1";
+
+        document.body.appendChild(span);
+        
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(span);
+        if (selection) {
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+
+        const successful = document.execCommand('copy');
+        
+        if (selection) selection.removeAllRanges();
+        document.body.removeChild(span);
+        
+        if (successful) return true;
+    } catch (err) {
+         console.warn("Stage 3 (execCommand/ContentEditable) failed:", err);
+    }
+
+    return false;
+  };
 
   const handleTranscriptionComplete = (record: TranscriptionRecord) => {
     setActiveRecord(record);
     // Add to history immediately
     setHistory(prev => [record, ...prev]);
-    setCurrentView(ViewState.EDITOR);
+
+    // Attempt Auto-Copy (Robust)
+    secureCopy(record.originalText).then((success) => {
+        if (success) {
+            playSuccessSound();
+            setCopyError(null);
+        } else {
+            console.error("Silent Auto-copy failed: All methods exhausted.");
+            // Keep the record active so the toast can copy it
+            setActiveRecord(record);
+            setCopyError("Auto-copy blocked by browser.");
+        }
+    });
+
+    // In Hands-Free mode, we stay on Console so loop continues. 
+    // Otherwise go to editor.
+    if (!settings.handsFreeMode) {
+        setCurrentView(ViewState.EDITOR);
+    }
+  };
+
+  const handleManualRetryCopy = () => {
+      if (activeRecord) {
+          secureCopy(activeRecord.originalText).then(success => {
+              if (success) {
+                  playSuccessSound();
+                  setCopyError(null);
+              }
+          });
+      }
   };
 
   const handleHistorySelect = (record: TranscriptionRecord) => {
@@ -75,7 +232,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className={`flex h-screen w-screen overflow-hidden bg-deep-space text-ghost-white font-sans selection:bg-luminous-cyan/30 ${settings.highContrast ? 'contrast-125 saturate-150' : ''} ${settings.fontSize === 'large' ? 'text-lg' : ''}`}>
+    <div className={`flex h-screen w-screen overflow-hidden bg-deep-space text-ghost-white font-sans selection:bg-luminous-cyan/30`}>
       
       {/* Sidebar (Desktop/Windows) */}
       <aside className="hidden md:flex flex-col w-64 border-r border-white/5 bg-black/20 backdrop-blur-xl">
@@ -90,7 +247,7 @@ const App: React.FC = () => {
             <NavButton 
                 active={currentView === ViewState.CONSOLE} 
                 onClick={() => setCurrentView(ViewState.CONSOLE)}
-                icon={<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 1.5a6 6 0 00-6 6v1.5a6 6 0 006 6v-1.5a6 6 0 006-6v-1.5a6 6 0 00-6-6z" /></svg>}
+                icon={<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 1.5a6 6 0 00-6 6v1.5a6 6 0 006 6v-1.5a6 6 0 006-6v-1.5a6 6 0 006-6v-1.5a6 6 0 00-6-6z" /></svg>}
                 label="Console"
             />
             <NavButton 
@@ -166,6 +323,21 @@ const App: React.FC = () => {
                     settings={settings}
                     updateSettings={setSettings}
                 />
+            )}
+
+            {/* Error Toast for Copy Failure */}
+            {copyError && (
+                <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in-up">
+                    <button 
+                        onClick={handleManualRetryCopy}
+                        className="bg-red-500/90 hover:bg-red-500 text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(239,68,68,0.5)] flex items-center gap-3 backdrop-blur-md border border-white/10"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 animate-bounce">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.088v9.663c0 1.115.845 2.078 1.976 2.172 3.169.263 6.353.263 9.522 0 1.131-.094 1.976-1.057 1.976-2.172V6.088c0-1.115-.845-2.078-1.976-2.172-1.429-.118-2.874-.197-4.328-.234" />
+                        </svg>
+                        <span className="font-medium">{copyError} <span className="underline">Tap to Copy</span></span>
+                    </button>
+                </div>
             )}
         </div>
 

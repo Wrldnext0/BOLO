@@ -22,7 +22,5 @@ export interface TranscriptionRecord {
 
 export interface AppSettings {
   language: SupportedLanguage;
-  highContrast: boolean;
-  fontSize: 'normal' | 'large';
-  miniMode: boolean;
+  handsFreeMode: boolean; // Combined "Auto-Paste" and "VAD"
 }

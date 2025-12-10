@@ -26,9 +26,43 @@ const Settings: React.FC<SettingsProps> = ({ settings, updateSettings }) => {
 
         <div className="space-y-6 overflow-y-auto pb-20">
             
+            {/* Hands-Free Mode Section */}
+            <section className={`border rounded-xl p-6 backdrop-blur-sm transition-colors duration-300 ${settings.handsFreeMode ? 'bg-electric-indigo/10 border-electric-indigo' : 'bg-white/5 border-white/10'}`}>
+                 <div className="flex items-start justify-between">
+                     <div>
+                        <h3 className={`text-xl font-bold mb-2 flex items-center gap-2 ${settings.handsFreeMode ? 'text-white' : 'text-slate-300'}`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 1.5a6 6 0 00-6 6v1.5a6 6 0 006 6v-1.5a6 6 0 006-6v-1.5a6 6 0 00-6-6z" />
+                            </svg>
+                            Auto-Paste to Cursor (Hands-Free)
+                        </h3>
+                        <p className="text-sm text-slate-400 max-w-lg leading-relaxed">
+                            When enabled, Bolo will run continuously in the background. 
+                            <br/><br/>
+                            <span className="text-luminous-cyan font-mono">Workflow:</span>
+                            <ul className="list-disc ml-5 mt-1 space-y-1">
+                                <li>App listens for speech automatically.</li>
+                                <li>Waits for <span className="font-bold text-white">5 seconds of silence</span>.</li>
+                                <li>Automatically processes and copies text to clipboard.</li>
+                            </ul>
+                        </p>
+                     </div>
+                     <button
+                        onClick={() => toggleSetting('handsFreeMode', !settings.handsFreeMode)}
+                        className={`mt-2 w-16 h-8 rounded-full relative transition-colors duration-200 ${
+                            settings.handsFreeMode ? 'bg-electric-indigo shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'bg-slate-700'
+                        }`}
+                    >
+                        <span className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                            settings.handsFreeMode ? 'left-9' : 'left-1'
+                        }`} />
+                    </button>
+                 </div>
+            </section>
+
             {/* Language Section */}
             <section className="bg-white/5 border border-glass-border rounded-xl p-6 backdrop-blur-sm">
-                <h3 className="text-lg font-medium text-luminous-cyan mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-medium text-slate-200 mb-4 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S12 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S12 3 12 3m0-18a9 9 0 019 9c0 4.97-4.03 9-9 9m9-9H3" /></svg>
                     Language Preference
                 </h3>
@@ -51,66 +85,9 @@ const Settings: React.FC<SettingsProps> = ({ settings, updateSettings }) => {
                     ))}
                 </div>
                 <p className="text-xs text-slate-500 mt-4">
-                    Select "Auto-Detect" for mixed language conversations (Code-switching). Force a language if you need stricter recognition.
+                    Select "Auto-Detect" for mixed language conversations (Code-switching).
                 </p>
             </section>
-
-            {/* Accessibility Section */}
-            <section className="bg-white/5 border border-glass-border rounded-xl p-6 backdrop-blur-sm">
-                <h3 className="text-lg font-medium text-luminous-cyan mb-4 flex items-center gap-2">
-                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    Accessibility
-                </h3>
-                
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/30 border border-white/5">
-                        <div className="flex flex-col">
-                            <span className="text-white font-medium">High Contrast Mode</span>
-                            <span className="text-xs text-slate-500">Increases text visibility and reduces transparency</span>
-                        </div>
-                        <button
-                            onClick={() => toggleSetting('highContrast', !settings.highContrast)}
-                            className={`w-12 h-6 rounded-full relative transition-colors duration-200 ${
-                                settings.highContrast ? 'bg-luminous-cyan' : 'bg-slate-700'
-                            }`}
-                        >
-                            <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
-                                settings.highContrast ? 'left-7' : 'left-1'
-                            }`} />
-                        </button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/30 border border-white/5">
-                        <div className="flex flex-col">
-                            <span className="text-white font-medium">Large Text Size</span>
-                            <span className="text-xs text-slate-500">Increases font size for transcriptions</span>
-                        </div>
-                         <button
-                            onClick={() => toggleSetting('fontSize', settings.fontSize === 'normal' ? 'large' : 'normal')}
-                            className={`w-12 h-6 rounded-full relative transition-colors duration-200 ${
-                                settings.fontSize === 'large' ? 'bg-luminous-cyan' : 'bg-slate-700'
-                            }`}
-                        >
-                            <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
-                                settings.fontSize === 'large' ? 'left-7' : 'left-1'
-                            }`} />
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-             {/* Export Section (Mock) */}
-             <section className="bg-white/5 border border-glass-border rounded-xl p-6 backdrop-blur-sm opacity-70">
-                <h3 className="text-lg font-medium text-slate-400 mb-4 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
-                    Default Export Format (Coming Soon)
-                </h3>
-                <div className="flex gap-3">
-                    <div className="px-4 py-2 rounded bg-slate-800 border border-white/5 text-slate-500 text-sm cursor-not-allowed">.TXT</div>
-                    <div className="px-4 py-2 rounded bg-slate-800 border border-white/5 text-slate-500 text-sm cursor-not-allowed">.DOCX</div>
-                    <div className="px-4 py-2 rounded bg-slate-800 border border-white/5 text-slate-500 text-sm cursor-not-allowed">PDF</div>
-                </div>
-             </section>
         </div>
     </div>
   );

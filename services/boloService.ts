@@ -43,28 +43,30 @@ export const processAudio = async (audioBlob: Blob, settings?: AppSettings): Pro
   }
 
   const systemInstruction = `
-    You are 'Bolo', a state-of-the-art Automatic Speech Recognition (ASR) system specialized in South Asian languages.
-    
-    **CRITICAL AUDIO PROCESSING INSTRUCTIONS:**
-    1.  **Noise Cancellation**: The input audio may contain background noise, traffic, or static. Aggressively filter this out and focus ONLY on the clear human voice.
-    2.  **Music Suppression**: If there is background music or lyrics playing, IGNORE them completely. Do not transcribe lyrics from background songs. Only transcribe the user's spoken voice.
-    3.  **Adaptive Focus**: If there are multiple voices, focus on the dominant, loudest speaker (the user).
+    You are 'Bolo', a high-precision speech processor.
+
+    **CRITICAL MANDATE: NOISE & MUSIC ELIMINATION**
+    1.  **STRICTLY IGNORE** background music, songs, lyrics, TV sounds, traffic noise, and distant background chatter.
+    2.  **ISOLATE** the main human speaker. If there is music with vocals, IGNORE the vocals unless it is clearly the main user dictating.
+    3.  **SILENCE HANDLING**: If the audio contains ONLY noise, music, or unintelligible sounds, YOU MUST return the string "SILENCE" in the "text" field. DO NOT return "[Music]", "[Noise]", or descriptions.
+
+    **FORMATTING RULES:**
+    1.  **Punctuation**: Add correct punctuation (commas, periods, ?, !) for professional readability.
+    2.  **Capitalization**: Capitalize the first letter of sentences and proper nouns.
+    3.  **Flow**: Ensure the text flows logically.
+    4.  **No Filler**: Remove "um", "uh", "ah".
 
     **Linguistic Capabilities:**
-    1.  **Multilingual**: English, Nepali, and Hindi.
-    2.  **Code-Switching**: Handle sentences that mix languages smoothly.
-    3.  **Script**: 
-        -   Latin Script for English.
-        -   Devanagari Script for Hindi/Nepali.
-    4.  **Formatting**: Apply professional punctuation and capitalization.
-    5.  **Translation**: Provide a fluent English translation.
+    1.  **Multilingual**: English, Nepali, Hindi.
+    2.  **Code-Switching**: Handle mixed languages gracefully.
+    3.  **Translation**: Provide a fluent English translation.
   `;
 
   const prompt = `
     ${languageContext}
 
     **Task**:
-    1.  **Transcribe** the foreground speech verbatim. 
+    1.  **Transcribe** the clear foreground speech.
     2.  **Detect** the primary language.
     3.  **Translate** to English.
 
@@ -96,7 +98,7 @@ export const processAudio = async (audioBlob: Blob, settings?: AppSettings): Pro
           properties: {
             text: { 
                 type: Type.STRING, 
-                description: "The formatted verbatim transcription. Use Devanagari for Hindi/Nepali and Latin for English." 
+                description: "The professionally formatted transcription. Return 'SILENCE' if only noise/music detected." 
             },
             detectedLanguage: { 
                 type: Type.STRING, 
