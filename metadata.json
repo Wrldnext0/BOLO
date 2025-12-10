@@ -1,0 +1,7 @@
+{
+  "name": "Bolo",
+  "description": "Advanced AI-powered speech recognition and translation tool supporting English, Nepali, and Hindi.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
